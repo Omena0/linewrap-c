@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Linewrap Visualizer</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #111;
+            color: #eee;
+            font-family: sans-serif;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #toolbar {
+            min-height: 50px;
+            flex-shrink: 0;
+
+            display: flex;
+            align-items: center;
+            gap: 10px;
+
+            padding: 8px 12px;
+
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        button,
+        label {
+            padding: 7px 12px;
+
+            border: 1px solid #444;
+            border-radius: 5px;
+
+            background: #292929;
+            color: #eee;
+
+            cursor: pointer;
+        }
+
+        button:hover,
+        label:hover {
+            background: #353535;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        input[type="number"] {
+            width: 90px;
+
+            padding: 6px 8px;
+
+            background: #111;
+            color: #eee;
+
+            border: 1px solid #444;
+            border-radius: 4px;
+        }
+
+        #font-name {
+            color: #999;
+            font-size: 13px;
+        }
+
+        #status {
+            color: #888;
+            font-size: 13px;
+        }
+
+        .metric {
+            padding: 5px 9px;
+
+            border: 1px solid #333;
+            border-radius: 4px;
+
+            background: #151515;
+            color: #aaa;
+
+            font-size: 12px;
+
+            cursor: default;
+        }
+
+        .metric.clickable {
+            cursor: pointer;
+        }
+
+        .metric.clickable:hover {
+            background: #252525;
+            color: #eee;
+        }
+
+        .metric-value {
+            color: #ddd;
+            font-family: monospace;
+        }
+
+        #main {
+            display: flex;
+
+            flex: 1;
+            min-height: 0;
+            min-width: 0;
+        }
+
+        #input-panel {
+            width: 35%;
+            min-width: 300px;
+
+            display: flex;
+            flex-direction: column;
+
+            border-right: 1px solid #333;
+
+            background: #0d0d0d;
+        }
+
+        #input-label {
+            height: 35px;
+            flex-shrink: 0;
+
+            display: flex;
+            align-items: center;
+
+            padding: 0 10px;
+
+            background: #181818;
+            border-bottom: 1px solid #292929;
+
+            color: #aaa;
+            font-size: 13px;
+        }
+
+        #text-input {
+            flex: 1;
+
+            width: 100%;
+            height: 100%;
+
+            resize: none;
+
+            border: 0;
+            outline: 0;
+
+            padding: 12px;
+
+            background: #0d0d0d;
+            color: #eee;
+
+            caret-color: #fff;
+
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        #text-input::selection {
+            background: #444;
+            color: #fff;
+        }
+
+        #render-container {
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
+
+            overflow: auto;
+
+            background: #111;
+        }
+
+        #lines {
+            width: max-content;
+            min-width: 100%;
+        }
+
+        .render-line {
+            position: relative;
+
+            width: max-content;
+            height: 35px;
+        }
+
+        .render-line canvas {
+            display: block;
+        }
+
+        .width-marker {
+            position: absolute;
+
+            top: 0;
+
+            width: 1px;
+            height: 40px;
+
+            background: #444;
+
+            pointer-events: none;
+        }
+
+        .separator-line {
+            height: 50px;
+
+            display: flex;
+            align-items: center;
+
+            color: #888;
+
+            font-family: monospace;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+
+<body>
+
+<div id="toolbar">
+
+    <label for="font-input">
+        Upload Font
+    </label>
+
+    <input
+        id="font-input"
+        type="file"
+        accept=".ttf,.otf,.woff,.woff2"
+    >
+
+    <span id="font-name">
+        No font loaded
+    </span>
+
+    <span>
+        Width:
+        <span id="line-width-value">Auto</span>
+    </span>
+
+    <button id="clear-button">
+        Clear
+    </button>
+
+    <div
+        id="largest-spacing"
+        class="metric clickable"
+        title="Click to scroll to the largest spacing"
+    >
+        Largest spacing:
+        <span
+            id="largest-spacing-value"
+            class="metric-value"
+        >
+            -
+        </span>
+    </div>
+
+    <div
+        id="sparse-area"
+        class="metric clickable"
+        title="Click to scroll to the most sparse 8-line area"
+    >
+        Most sparse 8 lines:
+        <span
+            id="sparse-area-value"
+            class="metric-value"
+        >
+            -
+        </span>
+    </div>
+
+    <div class="metric">
+        Avg |deviation|:
+        <span
+            id="average-deviation-value"
+            class="metric-value"
+        >
+            -
+        </span>
+    </div>
+
+    <div class="metric">
+        Median |deviation|:
+        <span
+            id="median-deviation-value"
+            class="metric-value"
+        >
+            -
+        </span>
+    </div>
+
+    <span id="status">
+        0 lines
+    </span>
+
+</div>
+
+
+<div id="main">
+
+    <div id="input-panel">
+
+        <div id="input-label">
+            C program output
+        </div>
+
+        <textarea
+            id="text-input"
+            spellcheck="false"
+            placeholder="Paste the output of ./linewrap here..."
+        ></textarea>
+
+    </div>
+
+
+    <div id="render-container">
+        <div id="lines"></div>
+    </div>
+
+</div>
+
+
+<script>
+"use strict";
+
+
+const FONT_SIZE = 24;
+const LINE_HEIGHT = 35;
+const FONT_NAME = "LinewrapVisualizerFont";
+
+let targetWidth = 700;
+let widthAutoDetected = true;
+let parsedLines = [];
+
+let largestSpacingLine = null;
+let sparseAreaStart = null;
+
+
+/*
+ * Debug helper.
+ */
+function debug(...args) {
+    console.debug("[linewrap]", ...args);
+}
+
+function detectTargetWidth() {
+    for (const line of parsedLines) {
+        if (!Array.isArray(line))
+            continue;
+
+        if (line.length === 0)
+            continue;
+
+        let x = 0;
+
+        const probe =
+            document.createElement("canvas");
+
+        const ctx =
+            probe.getContext("2d");
+
+        ctx.font =
+            `${FONT_SIZE}px "${FONT_NAME}"`;
+
+        for (const token of line) {
+            if (token.type === "spacing") {
+                x += token.value;
+            } else if (token.type === "text") {
+                x += ctx.measureText(token.value).width;
+            }
+        }
+
+        if (x > 0) {
+            targetWidth = x;
+
+            document
+                .getElementById("line-width-value")
+                .textContent =
+                `${x.toFixed(3)} px`;
+
+            debug(
+                `auto-detected width: ${x.toFixed(3)}`
+            );
+
+            return;
+        }
+    }
+
+    document
+        .getElementById("line-width-value")
+        .textContent = "Unknown";
+}
+
+/*
+ * Parse one line.
+ *
+ * <number> is a raw horizontal advance.
+ */
+function parseLine(line) {
+    const tokens = [];
+    let i = 0;
+
+    while (i < line.length) {
+
+        /*
+         * Whitespace.
+         */
+        if (
+            line[i] === " " ||
+            line[i] === "\t"
+        ) {
+            ++i;
+            continue;
+        }
+
+        /*
+         * Try spacing token.
+         */
+        if (line[i] === "<") {
+            const end =
+                line.indexOf(">", i + 1);
+
+            if (end !== -1) {
+                const inside =
+                    line
+                        .slice(i + 1, end)
+                        .trim();
+
+                if (inside.length > 0) {
+                    const value =
+                        Number(inside);
+
+                    if (
+                        Number.isFinite(value)
+                    ) {
+                        tokens.push({
+                            type: "spacing",
+                            value
+                        });
+
+                        debug(
+                            `spacing: ${value.toFixed(3)}`
+                        );
+
+                        i = end + 1;
+
+                        continue;
+                    }
+                }
+            }
+
+            /*
+             * Invalid <...>. Consume '<' so the parser
+             * can never get stuck.
+             */
+            tokens.push({
+                type: "text",
+                value: "<"
+            });
+
+            ++i;
+            continue;
+        }
+
+        /*
+         * Normal text.
+         *
+         * Stop at whitespace or '<'.
+         */
+        const start = i;
+
+        while (
+            i < line.length &&
+            line[i] !== "<" &&
+            line[i] !== " " &&
+            line[i] !== "\t"
+        ) {
+            ++i;
+        }
+
+        if (i > start) {
+            const value =
+                line.slice(start, i);
+
+            tokens.push({
+                type: "text",
+                value
+            });
+
+            debug(
+                `text: "${value}"`
+            );
+        }
+    }
+
+    return tokens;
+}
+
+
+/*
+ * Parse complete C output.
+ */
+function parseOutput(text) {
+    const rawLines =
+        text
+            .replace(/\r\n/g, "\n")
+            .replace(/\r/g, "\n")
+            .split("\n");
+
+    const result = [];
+
+    for (const line of rawLines) {
+
+        if (
+            line.startsWith("----------") &&
+            line.endsWith("----------")
+        ) {
+            result.push({
+                separator: line
+            });
+
+            continue;
+        }
+
+        result.push(
+            parseLine(line)
+        );
+    }
+
+    return result;
+}
+
+
+/*
+ * Return true when this spacing token is an actual inter-word
+ * spacing token rather than leading spacing.
+ *
+ * The C output puts spacing before a word only for:
+ *
+ *   - one-word lines
+ *   - paragraph indentation
+ *
+ * We only want normal inter-word spacing for the metrics.
+ */
+function getInterWordSpacings(tokens) {
+    const values = [];
+
+    for (let i = 0; i < tokens.length; ++i) {
+
+        const token = tokens[i];
+
+        if (token.type !== "spacing")
+            continue;
+
+        /*
+         * A spacing token is inter-word spacing only if it has
+         * text immediately before and text immediately after it,
+         * ignoring any number of consecutive spacing tokens.
+         */
+        let hasTextBefore = false;
+        let hasTextAfter = false;
+
+        for (
+            let j = i - 1;
+            j >= 0;
+            --j
+        ) {
+            if (
+                tokens[j].type === "spacing"
+            ) {
+                continue;
+            }
+
+            if (
+                tokens[j].type === "text"
+            ) {
+                hasTextBefore = true;
+            }
+
+            break;
+        }
+
+        for (
+            let j = i + 1;
+            j < tokens.length;
+            ++j
+        ) {
+            if (
+                tokens[j].type === "spacing"
+            ) {
+                continue;
+            }
+
+            if (
+                tokens[j].type === "text"
+            ) {
+                hasTextAfter = true;
+            }
+
+            break;
+        }
+
+        if (
+            hasTextBefore &&
+            hasTextAfter
+        ) {
+            values.push(token.value);
+        }
+    }
+
+    return values;
+}
+
+
+/*
+ * Get the normal font space width.
+ */
+function getDefaultSpaceWidth() {
+    const probe =
+        document.createElement("canvas");
+
+    const ctx =
+        probe.getContext("2d");
+
+    ctx.font =
+        `${FONT_SIZE}px "${FONT_NAME}"`;
+
+    return ctx.measureText(" ").width;
+}
+
+
+/*
+ * Median of an array.
+ */
+function median(values) {
+    if (values.length === 0)
+        return 0;
+
+    const sorted =
+        [...values].sort(
+            (a, b) => a - b
+        );
+
+    const middle =
+        Math.floor(
+            sorted.length / 2
+        );
+
+    if (
+        sorted.length % 2 === 0
+    ) {
+        return (
+            sorted[middle - 1] +
+            sorted[middle]
+        ) / 2;
+    }
+
+    return sorted[middle];
+}
+
+
+/*
+ * Find all spacing metrics.
+ */
+function calculateMetrics() {
+    largestSpacingLine = null;
+    sparseAreaStart = null;
+
+    const allSpacingValues = [];
+    const lineSpacingValues = [];
+
+    /*
+     * Collect every spacing token for largest-spacing.
+     *
+     * Separately collect inter-word spacing for sparse-area and
+     * deviation statistics.
+     */
+    for (let line = 0; line < parsedLines.length; ++line) {
+        const tokens = parsedLines[line];
+
+        if (!Array.isArray(tokens)) {
+            lineSpacingValues.push(null);
+            continue;
+        }
+
+        const allValues = [];
+        const interWordValues = [];
+
+        for (let i = 0; i < tokens.length; ++i) {
+            const token = tokens[i];
+
+            if (token.type !== "spacing")
+                continue;
+
+            /*
+             * Largest-spacing considers EVERY spacing token.
+             */
+            allValues.push(token.value);
+            allSpacingValues.push({
+                value: token.value,
+                line
+            });
+
+            /*
+             * For sparse-area/deviation, only count a spacing if
+             * there is text somewhere before and after it.
+             *
+             * This excludes leading paragraph/one-word spacing.
+             */
+            let hasTextBefore = false;
+            let hasTextAfter = false;
+
+            for (let j = i - 1; j >= 0; --j) {
+                if (tokens[j].type === "spacing")
+                    continue;
+
+                if (tokens[j].type === "text")
+                    hasTextBefore = true;
+
+                break;
+            }
+
+            for (let j = i + 1; j < tokens.length; ++j) {
+                if (tokens[j].type === "spacing")
+                    continue;
+
+                if (tokens[j].type === "text")
+                    hasTextAfter = true;
+
+                break;
+            }
+
+            if (hasTextBefore && hasTextAfter) {
+                interWordValues.push(token.value);
+            }
+        }
+
+        lineSpacingValues.push(interWordValues);
+    }
+
+    /*
+     * Largest spacing: ALL <N> tokens.
+     */
+    let largest = -Infinity;
+
+    for (const item of allSpacingValues) {
+        if (item.value > largest) {
+            largest = item.value;
+            largestSpacingLine = item.line;
+        }
+    }
+
+    /*
+     * Most sparse area:
+     * highest average inter-word spacing over any 8-line window.
+     */
+    const WINDOW = 8;
+
+    let sparseAverage = -Infinity;
+
+    for (
+        let start = 0;
+        start < lineSpacingValues.length;
+        ++start
+    ) {
+        let sum = 0;
+        let count = 0;
+
+        const end = Math.min(
+            start + WINDOW,
+            lineSpacingValues.length
+        );
+
+        for (
+            let line = start;
+            line < end;
+            ++line
+        ) {
+            const values =
+                lineSpacingValues[line];
+
+            if (!values)
+                continue;
+
+            for (const value of values) {
+                sum += value;
+                ++count;
+            }
+        }
+
+        if (
+            count > 0 &&
+            sum / count > sparseAverage
+        ) {
+            sparseAverage = sum / count;
+            sparseAreaStart = start;
+        }
+    }
+
+    /*
+     * Default space width.
+     */
+    const defaultSpace =
+        getDefaultSpaceWidth();
+
+    /*
+     * Average + median absolute deviation of actual
+     * inter-word spaces from the font's normal space.
+     */
+    const deviations = [];
+
+    for (const values of lineSpacingValues) {
+        if (!values)
+            continue;
+
+        for (const value of values) {
+            deviations.push(
+                Math.abs(
+                    value - defaultSpace
+                )
+            );
+        }
+    }
+
+    /*
+     * Largest spacing.
+     */
+    document
+        .getElementById("largest-spacing-value")
+        .textContent =
+        largest !== -Infinity
+            ? `${largest.toFixed(3)} px`
+            : "-";
+
+    /*
+     * Most sparse area.
+     */
+    document
+        .getElementById("sparse-area-value")
+        .textContent =
+        sparseAverage !== -Infinity
+            ? `${sparseAverage.toFixed(3)} px`
+            : "-";
+
+    /*
+     * Average absolute deviation.
+     */
+    document
+        .getElementById("average-deviation-value")
+        .textContent =
+        deviations.length > 0
+            ? `${(
+                deviations.reduce(
+                    (a, b) => a + b,
+                    0
+                ) / deviations.length
+            ).toFixed(3)} px`
+            : "-";
+
+    /*
+     * Median absolute deviation.
+     */
+    document
+        .getElementById("median-deviation-value")
+        .textContent =
+        deviations.length > 0
+            ? `${median(deviations).toFixed(3)} px`
+            : "-";
+
+    debug(
+        "largest spacing:",
+        largest,
+        "line:",
+        largestSpacingLine
+    );
+
+    debug(
+        "most sparse area:",
+        sparseAverage,
+        "start:",
+        sparseAreaStart
+    );
+}
+ 
+
+/*
+ * Scroll to a rendered line.
+ */
+function scrollToLine(index) {
+
+    if (
+        index === null ||
+        index === undefined
+    ) {
+        return;
+    }
+
+    const container =
+        document.getElementById(
+            "render-container"
+        );
+
+    const lines =
+        document.getElementById("lines");
+
+    const line =
+        lines.children[index];
+
+    if (!line)
+        return;
+
+    /*
+     * Scroll the line into view without changing horizontal
+     * position unnecessarily.
+     */
+    const top =
+        line.offsetTop;
+
+    container.scrollTo({
+        top:
+            Math.max(
+                0,
+                top - 80
+            ),
+        behavior: "smooth"
+    });
+}
+
+
+/*
+ * Render one normal line.
+ */
+function renderLine(tokens, index) {
+
+    const wrapper =
+        document.createElement("div");
+
+    wrapper.className =
+        "render-line";
+
+
+    const canvasWidth =
+        Math.max(
+            Math.ceil(targetWidth) + 100,
+            100
+        );
+
+
+    const canvas =
+        document.createElement("canvas");
+
+    canvas.width =
+        canvasWidth;
+
+    canvas.height =
+        LINE_HEIGHT;
+
+    canvas.style.width =
+        `${canvasWidth}px`;
+
+    canvas.style.height =
+        `${LINE_HEIGHT}px`;
+
+
+    wrapper.appendChild(canvas);
+
+
+    const marker =
+        document.createElement("div");
+
+    marker.className =
+        "width-marker";
+
+    marker.style.left =
+        `${targetWidth}px`;
+
+    wrapper.appendChild(marker);
+
+
+    document
+        .getElementById("lines")
+        .appendChild(wrapper);
+
+
+    const ctx =
+        canvas.getContext("2d");
+
+
+    ctx.setTransform(
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+    );
+
+
+    ctx.font =
+        `${FONT_SIZE}px "${FONT_NAME}"`;
+
+    ctx.textBaseline =
+        "top";
+
+    ctx.fillStyle =
+        "#eee";
+
+
+    let x = 0;
+
+
+    for (const token of tokens) {
+
+        if (token.type === "spacing") {
+
+            x += token.value;
+
+            continue;
+        }
+
+
+        if (token.type === "text") {
+
+            ctx.fillText(
+                token.value,
+                x,
+                0
+            );
+
+            x +=
+                ctx.measureText(
+                    token.value
+                ).width;
+        }
+    }
+
+
+    debug(
+        `line ${index}: final x=${x.toFixed(3)} target=${targetWidth.toFixed(3)}`
+    );
+}
+
+
+/*
+ * Render separator.
+ */
+function renderSeparator(text) {
+
+    const element =
+        document.createElement("div");
+
+    element.className =
+        "separator-line";
+
+    element.textContent =
+        text;
+
+    document
+        .getElementById("lines")
+        .appendChild(element);
+}
+
+
+/*
+ * Main draw.
+ */
+function draw() {
+
+    const container =
+        document.getElementById("lines");
+
+    container.replaceChildren();
+
+
+    for (
+        let i = 0;
+        i < parsedLines.length;
+        ++i
+    ) {
+        const line =
+            parsedLines[i];
+
+
+        if (
+            !Array.isArray(line) &&
+            line.separator !== undefined
+        ) {
+            renderSeparator(
+                line.separator
+            );
+
+            continue;
+        }
+
+
+        /*
+         * Preserve line indexing even for empty lines.
+         */
+        renderLine(
+            line,
+            i
+        );
+    }
+
+
+    calculateMetrics();
+
+
+    document
+        .getElementById("status")
+        .textContent =
+        `${parsedLines.length} lines`;
+}
+
+
+/*
+ * Update from textarea.
+ */
+function update() {
+
+    const text =
+        document
+            .getElementById("text-input")
+            .value;
+
+    parsedLines =
+        parseOutput(text);
+
+    if (widthAutoDetected) {
+        detectTargetWidth();
+    }
+
+    draw();
+}
+
+
+/*
+ * Text input.
+ */
+document
+    .getElementById("text-input")
+    .addEventListener(
+        "input",
+        update
+    );
+
+
+/*
+ * Line width.
+ */
+document
+    .getElementById("line-width")
+    .addEventListener(
+        "input",
+        event => {
+
+            const value =
+                Number(event.target.value);
+
+            if (
+                Number.isFinite(value) &&
+                value > 0
+            ) {
+                targetWidth = value;
+
+                draw();
+            }
+        }
+    );
+
+
+/*
+ * Clear.
+ */
+document
+    .getElementById("clear-button")
+    .addEventListener(
+        "click",
+        () => {
+
+            document
+                .getElementById("text-input")
+                .value = "";
+
+            update();
+        }
+    );
+
+
+/*
+ * Largest-spacing navigation.
+ */
+document
+    .getElementById("largest-spacing")
+    .addEventListener(
+        "click",
+        () => {
+            scrollToLine(
+                largestSpacingLine
+            );
+        }
+    );
+
+
+/*
+ * Most-sparse-area navigation.
+ */
+document
+    .getElementById("sparse-area")
+    .addEventListener(
+        "click",
+        () => {
+            scrollToLine(
+                sparseAreaStart
+            );
+        }
+    );
+
+
+/*
+ * Font loader.
+ */
+async function loadFont(file) {
+
+    try {
+        const buffer =
+            await file.arrayBuffer();
+
+        const font =
+            new FontFace(
+                FONT_NAME,
+                buffer
+            );
+
+        await font.load();
+
+        document.fonts.add(font);
+
+        await document.fonts.load(
+            `${FONT_SIZE}px "${FONT_NAME}"`
+        );
+
+        document
+            .getElementById("font-name")
+            .textContent =
+            file.name;
+
+        draw();
+
+    } catch (error) {
+
+        console.error(
+            "Failed to load font:",
+            error
+        );
+
+        document
+            .getElementById("font-name")
+            .textContent =
+            "Failed to load font";
+    }
+}
+
+
+document
+    .getElementById("font-input")
+    .addEventListener(
+        "change",
+        async event => {
+
+            const file =
+                event.target.files[0];
+
+            if (file) {
+                await loadFont(file);
+            }
+        }
+    );
+
+
+window.onload = update; 
+
+</script>
+
+</body>
+</html>
